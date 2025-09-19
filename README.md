@@ -57,13 +57,13 @@ cd nama-repositori-anda
 2.  **Buat file `.env`**: Buat file baru bernama `.env` di direktori utama dan tambahkan API Key Anda.
 
     ```env
-    # Ganti dengan API Key Google Gemini Anda
-    API_KEY="YOUR_GOOGLE_API_KEY_HERE"
+    # Ganti dengan GEMINI API Key Google Gemini Anda
+    GEMINI_API_KEY="YOUR_GOOGLE_API_KEY_HERE"
     ```
 
 3.  **Jalankan server backend:**
     ```bash
-    node server.js
+    node index.js
     ```
     Server akan berjalan di `http://localhost:3000`.
 
