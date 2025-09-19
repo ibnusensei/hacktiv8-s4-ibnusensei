@@ -33,7 +33,7 @@ const geminiModels = {
   document: "gemini-2.5-flash-lite",
 };
 
-/app.use(cors());
+app.use(cors());
 app.use(express.json());
 
 app.post("/generate-text", async (req, res) => {
