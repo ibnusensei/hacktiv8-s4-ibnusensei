@@ -38,21 +38,26 @@ body {
     display: flex;
     flex-direction: column;
     margin-bottom: 20px;
+    max-width: 85%;
 }
 
 .user-message {
     align-items: flex-end;
+    margin-left: auto; /* Mendorong pesan pengguna ke kanan */
 }
 
 .bot-message {
     align-items: flex-start;
+    margin-right: auto; /* Mendorong pesan bot ke kiri */
 }
 
 .message-bubble {
     padding: 12px 18px;
     border-radius: 20px;
-    max-width: 85%;
     line-height: 1.6;
+    width: -moz-fit-content;
+    width: fit-content;
+    max-width: 100%;
 }
 
 .user-message .message-bubble {
@@ -70,6 +75,29 @@ body {
 .bot-message .message-bubble p {
     margin: 0;
 }
+
+/* === GAYA BARU UNTUK LAMPIRAN === */
+.attachment-bubble {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    background-color: #374151; /* slate-700 */
+    padding: 6px 12px;
+    border-radius: 15px;
+    border-bottom-right-radius: 5px;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    max-width: 100%;
+    width: -moz-fit-content;
+    width: fit-content;
+}
+
+.attachment-bubble span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+/* ================================ */
 
 /* Mode Buttons */
 .mode-btn {

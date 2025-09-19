@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const promptInput = document.getElementById('prompt-input');
     const fileInput = document.getElementById('file-input');
     const fileLabel = document.getElementById('file-label');
+    const attachmentInfo = document.getElementById('attachment-info');
     const modeButtons = {
         text: document.getElementById('mode-text'),
         image: document.getElementById('mode-image'),
@@ -23,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     let currentMode = 'text';
+    let chatHistory = [];
 
     // === LOGIKA AUTENTIKASI ===
     loginForm.addEventListener('submit', (e) => {
@@ -31,11 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
         loginBox.classList.remove('shake');
 
         if (pinInput.value === CORRECT_PIN) {
-            // PIN Benar
             loginOverlay.classList.add('opacity-0', 'pointer-events-none');
             appContainer.classList.remove('hidden');
         } else {
-            // PIN Salah
             loginBox.classList.add('shake');
             pinError.textContent = 'PIN salah. Coba lagi.';
             pinInput.value = '';
@@ -43,7 +43,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // === LOGIKA APLIKASI CHAT (tetap sama) ===
+    // === LOGIKA APLIKASI CHAT ===
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            const fileName = fileInput.files[0].name;
+            attachmentInfo.textContent = `Lampiran: ${fileName}`;
+            attachmentInfo.classList.remove('hidden');
+        } else {
+            attachmentInfo.textContent = '';
+            attachmentInfo.classList.add('hidden');
+        }
+    });
+
     function setMode(mode) {
         currentMode = mode;
         for (const key in modeButtons) {
@@ -54,10 +66,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (mode === 'text') {
             fileLabel.classList.add('hidden');
             promptInput.placeholder = "Ketik pesan Anda...";
+            attachmentInfo.textContent = '';
+            attachmentInfo.classList.add('hidden');
+            fileInput.value = '';
         } else {
             fileLabel.classList.remove('hidden');
             let modeName = mode.charAt(0).toUpperCase() + mode.slice(1);
             promptInput.placeholder = `Ketik prompt untuk ${modeName}... (opsional)`;
+        }
+        if (mode !== 'text') {
+            chatHistory = []; // Hapus komentar ini jika ingin chat direset saat ganti mode
         }
     }
 
@@ -76,11 +94,15 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const userMessage = prompt || file.name;
-        displayMessage(userMessage, 'user');
+        // --- PERUBAHAN DI SINI ---
+        // Panggil displayMessage dengan menyertakan nama file
+        displayMessage(prompt, 'user', { attachmentName: file ? file.name : null });
+        // -------------------------
         
         promptInput.value = '';
         fileInput.value = '';
+        attachmentInfo.textContent = '';
+        attachmentInfo.classList.add('hidden');
 
         const formData = new FormData();
         if (prompt) {
@@ -91,30 +113,68 @@ document.addEventListener('DOMContentLoaded', () => {
         let body;
         let headers = {};
 
-        switch (currentMode) {
-            case 'text':
-                endpoint = '/generate-text';
-                body = JSON.stringify({ message: prompt });
-                headers['Content-Type'] = 'application/json';
-                break;
-            case 'image':
-                endpoint = '/generate-from-image';
-                formData.append('image', file);
-                body = formData;
-                break;
-            case 'document':
-                endpoint = '/generate-from-document';
-                formData.append('document', file);
-                body = formData;
-                break;
-            case 'audio':
-                endpoint = '/generate-from-audio';
-                formData.append('audio', file);
-                body = formData;
-                break;
-        }
+        if (currentMode === 'text') {
+            // 1. Tambahkan pesan baru ke riwayat
+            chatHistory.push({
+                role: 'user',
+                parts: [{ text: prompt }]
+            });
 
-        const loadingBubble = displayMessage('...', 'bot', true);
+            // 2. Siapkan body untuk dikirim ke backend
+            endpoint = '/generate-text';
+            body = JSON.stringify({ history: chatHistory });
+            headers['Content-Type'] = 'application/json';
+        } else {
+            // Mode file tetap stateless (tidak menggunakan chatHistory)
+            const formData = new FormData();
+            if (prompt) {
+                formData.append('prompt', prompt);
+            }
+            switch (currentMode) {
+                case 'image':
+                    endpoint = '/generate-from-image';
+                    formData.append('image', file);
+                    break;
+                case 'document':
+                    endpoint = '/generate-from-document';
+                    formData.append('document', file);
+                    break;
+                case 'audio':
+                    endpoint = '/generate-from-audio';
+                    formData.append('audio', file);
+                    break;
+            }
+            body = formData;
+        }
+        // switch (currentMode) {
+        //     case 'text':
+        //         endpoint = '/generate-text';
+        //         body = JSON.stringify({ message: prompt });
+        //         headers['Content-Type'] = 'application/json';
+        //         break;
+        //     case 'image':
+        //         endpoint = '/generate-from-image';
+        //         formData.append('image', file);
+        //         body = formData;
+        //         break;
+        //     case 'document':
+        //         endpoint = '/generate-from-document';
+        //         formData.append('document', file);
+        //         body = formData;
+        //         break;
+        //     case 'audio':
+        //         endpoint = '/generate-from-audio';
+        //         formData.append('audio', file);
+        //         body = formData;
+        //         break;
+        // }
+
+        promptInput.value = '';
+        fileInput.value = '';
+        attachmentInfo.textContent = '';
+        attachmentInfo.classList.add('hidden');
+
+        const loadingBubble = displayMessage('', 'bot', { isLoading: true });
 
         try {
             const response = await fetch(`http://localhost:3000${endpoint}`, {
@@ -130,6 +190,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const data = await response.json();
             const reply = data.reply || data.result;
+
+            if (currentMode === 'text') {
+                chatHistory.push({
+                    role: 'model',
+                    parts: [{ text: reply }]
+                });
+            }
+            
             updateMessage(loadingBubble, reply);
 
         } catch (error) {
@@ -138,30 +206,54 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    function displayMessage(message, sender, isLoading = false) {
+    // --- FUNGSI displayMessage DIPERBARUI ---
+    function displayMessage(message, sender, options = {}) {
+        const { isLoading = false, attachmentName = null } = options;
+
         const messageWrapper = document.createElement('div');
         messageWrapper.classList.add('message', sender === 'user' ? 'user-message' : 'bot-message');
 
-        const messageBubble = document.createElement('div');
-        messageBubble.classList.add('message-bubble');
+        // Jika ini pesan pengguna dan ada lampiran, buat gelembung lampiran
+        if (sender === 'user' && attachmentName) {
+            const attachmentBubble = document.createElement('div');
+            attachmentBubble.classList.add('attachment-bubble');
+            attachmentBubble.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline-block mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                <span>${attachmentName}</span>
+            `;
+            messageWrapper.appendChild(attachmentBubble);
+        }
 
-        if (isLoading) {
-            messageBubble.innerHTML = '<span class="animate-pulse">Mengetik...</span>';
-        } else {
-            messageBubble.textContent = message;
+        const hasContent = message || (sender === 'bot' && isLoading);
+        
+        // Buat gelembung pesan utama jika ada konten (teks atau loading)
+        if (hasContent) {
+            const messageBubble = document.createElement('div');
+            messageBubble.classList.add('message-bubble');
+
+            if (isLoading) {
+                messageBubble.innerHTML = '<span class="animate-pulse">Mengetik...</span>';
+            } else {
+                messageBubble.textContent = message;
+            }
+            
+            messageWrapper.appendChild(messageBubble);
         }
         
-        messageWrapper.appendChild(messageBubble);
         chatContainer.appendChild(messageWrapper);
         chatContainer.scrollTop = chatContainer.scrollHeight;
 
-        return messageBubble;
+        return messageWrapper.querySelector('.message-bubble'); // Kembalikan bubble untuk diupdate
     }
 
     function updateMessage(bubble, newText) {
-        bubble.innerHTML = '';
-        bubble.textContent = newText;
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+        if (bubble) {
+            bubble.innerHTML = '';
+            bubble.textContent = newText;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
     }
 
     setMode('text');

@@ -7,7 +7,10 @@ import cors from "cors";
 
 const app = express();
 const upload = multer();
+// const ai = new GoogleGenAI({});
+// Inisialisasi model dengan API Key langsung
 const ai = new GoogleGenAI({});
+// -------------------------
 
 // Fungsi bantuan untuk mengekstrak teks dari respons Google AI
 function extractText(response) {
@@ -27,7 +30,7 @@ function extractText(response) {
 
 // inisialisasi model AI
 const geminiModels = {
-  text: "gemini-2.5-flash-lite",
+  text: "gemini-2.5-pro",
   image: "gemini-2.5-flash",
   audio: "gemini-2.5-flash",
   document: "gemini-2.5-flash-lite",
@@ -37,22 +40,22 @@ app.use(cors());
 app.use(express.json());
 
 app.post("/generate-text", async (req, res) => {
-  const { message } = req.body || {};
-  if (!message || typeof message !== "string") {
-    return res.status(400).json({ message: "Pesan tidak ada atau format-nya tidak sesuai." });
-  }
-
+  // stateful chat history
   try {
-    const response = await ai.models.generateContent({
-      contents: [{ role: "user", parts: [{ text: message }] }],
+    const { history } = req.body;
+    if (!history || !Array.isArray(history)) {
+      return res.status(400).json({ error: "Riwayat chat tidak valid." });
+    }
+    const resp = await ai.models.generateContent({
       model: geminiModels.text,
+      contents: history.flatMap(item => item.parts),
     });
-    // Perhatikan: endpoint teks mungkin memiliki struktur respons yang sedikit berbeda
-    res.status(200).json({ reply: extractText(response) });
-  } catch(err) {
+    res.json({ result: extractText(resp) });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
+
 
 app.post("/generate-from-image", upload.single("image"), async (req, res) => {
   try {
