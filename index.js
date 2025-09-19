@@ -9,6 +9,22 @@ const app = express();
 const upload = multer();
 const ai = new GoogleGenAI({});
 
+// Fungsi bantuan untuk mengekstrak teks dari respons Google AI
+function extractText(response) {
+  try {
+    const text = response?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (text) {
+      return text;
+    } else {
+      console.warn("Could not extract text from response:", JSON.stringify(response, null, 2));
+      return "Tidak dapat mengekstrak respons teks dari AI.";
+    }
+  } catch (e) {
+    console.error("Error in extractText function:", e);
+    return "Terjadi kesalahan saat memproses respons AI.";
+  }
+}
+
 // inisialisasi model AI
 const geminiModels = {
   text: "gemini-2.5-flash-lite",
@@ -17,46 +33,38 @@ const geminiModels = {
   document: "gemini-2.5-flash-lite",
 };
 
-// inisialisasi aplikasi back-end/server
-app.use(cors()); // .use() --> panggil/bikin middleware
-// app.use(() => {}); --> pakai middleware sendiri
-app.use(express.json()); // --> untuk membolehkan kita menggunakan 'Content-Type: application/json' di header
-
-// inisialisasi route-nya
-// .get(), .post(), .put(), .patch(), .delete() --> yang paling umum dipakai
-// .options() --> lebih jarang dipakai, karena ini lebih ke preflight (untuk CORS umumnya)
+/app.use(cors());
+app.use(express.json());
 
 app.post("/generate-text", async (req, res) => {
-  // handle bagaimana request diterima oleh user
   const { message } = req.body || {};
-
   if (!message || typeof message !== "string") {
-    res
-      .status(400)
-      .json({ message: "Pesan tidak ada atau format-nya tidak sesuai." });
-    return; // keluar lebih awal dari handler
+    return res.status(400).json({ message: "Pesan tidak ada atau format-nya tidak sesuai." });
   }
 
-  const response = await ai.models.generateContent({
-    contents: message,
-    model: geminiModels.text,
-  });
-
-  res.status(200).json({
-    reply: response.text,
-  });
+  try {
+    const response = await ai.models.generateContent({
+      contents: [{ role: "user", parts: [{ text: message }] }],
+      model: geminiModels.text,
+    });
+    // Perhatikan: endpoint teks mungkin memiliki struktur respons yang sedikit berbeda
+    res.status(200).json({ reply: extractText(response) });
+  } catch(err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-// /generate-from-image
 app.post("/generate-from-image", upload.single("image"), async (req, res) => {
   try {
-    // handle bagaimana request diterima oleh user
+    if (!req.file) {
+        return res.status(400).json({ error: "File gambar tidak ditemukan." });
+    }
     const { prompt } = req.body;
     const imageBase64 = req.file.buffer.toString("base64");
     const resp = await ai.models.generateContent({
       model: geminiModels.image,
       contents: [
-        { text: prompt },
+        { text: prompt || "Jelaskan gambar ini." },
         { inlineData: { mimeType: req.file.mimetype, data: imageBase64 } },
       ],
     });
@@ -66,10 +74,11 @@ app.post("/generate-from-image", upload.single("image"), async (req, res) => {
   }
 });
 
-// /generate-from-document
 app.post("/generate-from-document", upload.single("document"), async (req, res) => {
     try {
-        // handle bagaimana request diterima oleh user
+        if (!req.file) {
+            return res.status(400).json({ error: "File dokumen tidak ditemukan." });
+        }
         const { prompt } = req.body;
         const docBase64 = req.file.buffer.toString("base64");
         const resp = await ai.models.generateContent({
@@ -85,10 +94,11 @@ app.post("/generate-from-document", upload.single("document"), async (req, res) 
     }
 });
 
-// /generate-from-audio
 app.post("/generate-from-audio", upload.single("audio"), async (req, res) => {
-  // handle bagaimana request diterima oleh user
     try {
+        if (!req.file) {
+            return res.status(400).json({ error: "File audio tidak ditemukan." });
+        }
         const { prompt } = req.body;
         const audioBase64 = req.file.buffer.toString("base64");
         const resp = await ai.models.generateContent({
@@ -104,9 +114,7 @@ app.post("/generate-from-audio", upload.single("audio"), async (req, res) => {
     }
 });
 
-// panggil si app-nya di sini
 const port = 3000;
-
 app.listen(port, () => {
-  console.log("I LOVE YOU", port);
+  console.log("Server berjalan di port", port);
 });
